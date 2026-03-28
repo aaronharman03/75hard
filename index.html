@@ -35,7 +35,6 @@
             overflow-x: hidden;
         }
 
-        /* Progress Bars */
         .progress-container {
             width: 100%;
             max-width: 500px;
@@ -47,13 +46,7 @@
             z-index: 10;
         }
 
-        .bar-label { 
-            font-size: 0.75rem; 
-            margin-bottom: 5px; 
-            display: block; 
-            opacity: 0.8; 
-            font-weight: bold; 
-        }
+        .bar-label { font-size: 0.75rem; margin-bottom: 5px; display: block; opacity: 0.8; font-weight: bold; }
         
         .progress-bar {
             width: 100%;
@@ -73,7 +66,6 @@
 
         .daily-fill { background: var(--accent); }
 
-        /* Day Scroller */
         .day-scroller {
             display: flex;
             overflow-x: auto;
@@ -102,13 +94,8 @@
             font-weight: bold;
         }
 
-        .day-btn.active { 
-            border-color: var(--primary); 
-            background: #311b92; 
-            box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); 
-        }
+        .day-btn.active { border-color: var(--primary); background: #311b92; box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
 
-        /* Task List */
         .task-card {
             background: var(--card);
             width: 100%;
@@ -135,27 +122,21 @@
         }
 
         .task-content { flex-grow: 1; overflow: hidden; }
-        .task-text { 
-            font-size: 1.05rem; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            display: block; 
-        }
+        .task-text { font-size: 1.05rem; display: block; }
         .task-text.done { text-decoration: line-through; opacity: 0.4; }
 
-        .task-actions { display: flex; gap: 15px; }
-        .action-btn { 
-            background: none; 
-            border: none; 
-            color: #777; 
-            cursor: pointer; 
-            font-size: 1.1rem; 
-            padding: 5px; 
+        .task-order-badge {
+            font-size: 0.7rem;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 8px;
+            color: var(--primary);
         }
-        .action-btn:hover { color: var(--text); }
 
-        /* Input Styles */
+        .task-actions { display: flex; gap: 15px; }
+        .action-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 1.1rem; padding: 5px; }
+
         .add-task-container {
             margin-top: 25px;
             display: flex;
@@ -164,6 +145,17 @@
         }
 
         .input-row { display: flex; gap: 10px; }
+        
+        .order-input {
+            width: 50px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 10px;
+            text-align: center;
+            outline: none;
+        }
+
         input[type="text"] {
             flex-grow: 1;
             background: #2a2a2a;
@@ -185,28 +177,17 @@
             cursor: pointer;
         }
 
-        label {
-            font-size: 0.9rem;
-            color: #999;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
+        label { font-size: 0.9rem; color: #999; display: flex; align-items: center; gap: 8px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="progress-container">
         <span id="overallLabel" class="bar-label">Overall Progress (0/75 Days)</span>
-        <div class="progress-bar">
-            <div id="overallFill" class="progress-fill"></div>
-        </div>
+        <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
         
         <span id="dailyLabel" class="bar-label">Daily Progress</span>
-        <div class="progress-bar">
-            <div id="dailyFill" class="progress-fill daily-fill"></div>
-        </div>
+        <div class="progress-bar"><div id="dailyFill" class="progress-fill daily-fill"></div></div>
     </div>
 
     <div class="day-scroller" id="dayScroller"></div>
@@ -218,18 +199,17 @@
         
         <div class="add-task-container">
             <div class="input-row">
+                <input type="number" id="taskOrder" class="order-input" placeholder="#" value="1">
                 <input type="text" id="taskInput" placeholder="Add a new task...">
                 <button class="add-btn" onclick="addTask()">ADD</button>
             </div>
             <label>
-                <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> 
-                Repeat for all 75 days
+                <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> Repeat for all 75 days
             </label>
         </div>
     </div>
 
     <script>
-        // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyCtLUpfhGkp2dgtzzqobQmyV84ldAYAHtM",
             authDomain: "hard-8e466.firebaseapp.com",
@@ -244,7 +224,6 @@
         const db = firebase.firestore();
         let selectedDay = 1;
 
-        // Initialize Application
         function init() {
             const scroller = document.getElementById('dayScroller');
             for (let i = 1; i <= 75; i++) {
@@ -254,7 +233,6 @@
                 btn.onclick = () => selectDay(i);
                 scroller.appendChild(btn);
             }
-            
             setupDailyListener();
             setupOverallListener();
             registerServiceWorker();
@@ -267,7 +245,6 @@
             setupDailyListener();
         }
 
-        // Live Listener for the Active Day
         function setupDailyListener() {
             db.collection("tasks").where("day", "==", selectedDay)
                 .onSnapshot((snapshot) => {
@@ -277,7 +254,6 @@
                 });
         }
 
-        // Live Listener for Overall Progress Calculation
         function setupOverallListener() {
             db.collection("tasks").onSnapshot((snapshot) => {
                 const daysMap = {};
@@ -302,22 +278,27 @@
 
         async function addTask() {
             const input = document.getElementById('taskInput');
+            const orderInput = document.getElementById('taskOrder');
             const repeat = document.getElementById('repeatDaily').checked;
+            
             if (!input.value.trim()) return;
 
             const name = input.value;
+            const orderNum = parseInt(orderInput.value) || 1;
+            
             input.value = '';
+            orderInput.value = orderNum + 1; // Auto-increment for next task
             document.getElementById('repeatDaily').checked = false;
 
             if (repeat) {
                 const batch = db.batch();
                 for (let i = 1; i <= 75; i++) {
                     const ref = db.collection("tasks").doc();
-                    batch.set(ref, { text: name, done: false, day: i });
+                    batch.set(ref, { text: name, done: false, day: i, order: orderNum });
                 }
                 await batch.commit();
             } else {
-                await db.collection("tasks").add({ text: name, done: false, day: selectedDay });
+                await db.collection("tasks").add({ text: name, done: false, day: selectedDay, order: orderNum });
             }
         }
 
@@ -326,48 +307,50 @@
         }
 
         async function deleteTask(id, taskText) {
-            const choice = confirm("Delete this task?\n\nOK - Delete for TODAY ONLY\nCancel - Delete for ALL 75 DAYS");
-            
+            const choice = confirm("Delete this task?\n\nOK - Just Today\nCancel - ALL 75 Days");
             if (choice) {
-                // User clicked OK
                 await db.collection("tasks").doc(id).delete();
             } else {
-                // User clicked Cancel (All days)
-                const secondConfirm = confirm(`Are you sure you want to delete "${taskText}" from ALL 75 days?`);
+                const secondConfirm = confirm(`Delete "${taskText}" from ALL 75 days?`);
                 if (secondConfirm) {
                     const snapshot = await db.collection("tasks").where("text", "==", taskText).get();
                     const batch = db.batch();
-                    snapshot.forEach(doc => {
-                        batch.delete(doc.ref);
-                    });
+                    snapshot.forEach(doc => batch.delete(doc.ref));
                     await batch.commit();
                 }
             }
         }
 
-        async function editTask(id, oldText) {
-            const newText = prompt("Edit task:", oldText);
+        async function editTask(id, oldText, oldOrder) {
+            const newText = prompt("Edit task text:", oldText);
+            const newOrder = prompt("Edit order number:", oldOrder);
             if (newText && newText.trim() !== "") {
-                await db.collection("tasks").doc(id).update({ text: newText });
+                await db.collection("tasks").doc(id).update({ 
+                    text: newText, 
+                    order: parseInt(newOrder) || oldOrder 
+                });
             }
         }
 
         function renderTasks(tasks) {
             const list = document.getElementById('taskList');
-            list.innerHTML = tasks.length === 0 ? '<p style="text-align:center; opacity:0.4; margin: 20px 0;">No tasks added for this day.</p>' : '';
+            list.innerHTML = tasks.length === 0 ? '<p style="text-align:center; opacity:0.4; margin: 20px 0;">No tasks.</p>' : '';
             
             let doneCount = 0;
-            tasks.sort((a, b) => a.text.localeCompare(b.text)).forEach(task => {
+            // SORTING LOGIC: Sort by the 'order' field numerically
+            tasks.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(task => {
                 if(task.done) doneCount++;
                 const div = document.createElement('div');
                 div.className = 'task-item';
                 div.innerHTML = `
                     <input type="checkbox" class="checkbox-custom" ${task.done ? 'checked' : ''} onchange="toggleTask('${task.id}', ${task.done})">
                     <div class="task-content">
-                        <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
+                        <span class="task-text ${task.done ? 'done' : ''}">
+                            <span class="task-order-badge">${task.order || 0}</span>${task.text}
+                        </span>
                     </div>
                     <div class="task-actions">
-                        <button class="action-btn" onclick="editTask('${task.id}', '${task.text}')">✎</button>
+                        <button class="action-btn" onclick="editTask('${task.id}', '${task.text}', ${task.order || 0})">✎</button>
                         <button class="action-btn" onclick="deleteTask('${task.id}', '${task.text}')" style="color:#555">✕</button>
                     </div>
                 `;
@@ -382,7 +365,7 @@
         function registerServiceWorker() {
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed', err));
+                    navigator.serviceWorker.register('sw.js').catch(() => {});
                 });
             }
         }
