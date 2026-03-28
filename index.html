@@ -6,6 +6,9 @@
     <title>75 Hard Firestore PWA</title>
     <link rel="manifest" href="manifest.json">
     
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+    
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
@@ -304,7 +307,13 @@
             document.getElementById('dailyFill').style.width = percent + '%';
             document.getElementById('dailyLabel').innerText = `Daily Progress (${doneCount}/${tasks.length})`;
         }
-
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('Service Worker Registered'))
+      .catch(err => console.log('Service Worker Failed', err));
+  });
+}
         init();
     </script>
 </body>
