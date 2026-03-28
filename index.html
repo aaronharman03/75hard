@@ -8,7 +8,8 @@
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="https://th.bing.com/th/id/OIP.2U8OW5re3riRQbbGNiOY3wHaEJ?w=281&h=180&c=7&r=0&o=7&pid=1.7&rm=3",
+    <link rel="apple-touch-icon" href="https://th.bing.com/th/id/OIP.2U8OW5re3riRQbbGNiOY3wHaEJ?w=281&h=180&c=7&r=0&o=7&pid=1.7&rm=3">
+
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
@@ -34,7 +35,6 @@
             overflow-x: hidden;
         }
 
-        /* Progress Bars */
         .progress-container {
             width: 100%;
             max-width: 500px;
@@ -66,7 +66,6 @@
 
         .daily-fill { background: var(--accent); }
 
-        /* Day Scroller */
         .day-scroller {
             display: flex;
             overflow-x: auto;
@@ -97,7 +96,6 @@
 
         .day-btn.active { border-color: var(--primary); background: #311b92; box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
 
-        /* Task List */
         .task-card {
             background: var(--card);
             width: 100%;
@@ -129,9 +127,7 @@
 
         .task-actions { display: flex; gap: 15px; }
         .action-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 1.1rem; padding: 5px; }
-        .action-btn:hover { color: var(--text); }
 
-        /* Input Styles */
         .add-task-container {
             margin-top: 25px;
             display: flex;
@@ -191,22 +187,20 @@
     </div>
 
     <script>
-        // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
-             apiKey: "AIzaSyCtLUpfhGkp2dgtzzqobQmyV84ldAYAHtM",
-  authDomain: "hard-8e466.firebaseapp.com",
-  projectId: "hard-8e466",
-  storageBucket: "hard-8e466.firebasestorage.app",
-  messagingSenderId: "1094858700275",
-  appId: "1:1094858700275:web:131e781f0f77dc92d5ce86",
-  measurementId: "G-6M298K02NR"
+            apiKey: "AIzaSyCtLUpfhGkp2dgtzzqobQmyV84ldAYAHtM",
+            authDomain: "hard-8e466.firebaseapp.com",
+            projectId: "hard-8e466",
+            storageBucket: "hard-8e466.firebasestorage.app",
+            messagingSenderId: "1094858700275",
+            appId: "1:1094858700275:web:131e781f0f77dc92d5ce86",
+            measurementId: "G-6M298K02NR"
         };
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         let selectedDay = 1;
 
-        // Initialize Application
         function init() {
             const scroller = document.getElementById('dayScroller');
             for (let i = 1; i <= 75; i++) {
@@ -216,7 +210,6 @@
                 btn.onclick = () => selectDay(i);
                 scroller.appendChild(btn);
             }
-            
             setupDailyListener();
             setupOverallListener();
             registerServiceWorker();
@@ -229,7 +222,6 @@
             setupDailyListener();
         }
 
-        // Live Listener for the Active Day
         function setupDailyListener() {
             db.collection("tasks").where("day", "==", selectedDay)
                 .onSnapshot((snapshot) => {
@@ -239,7 +231,6 @@
                 });
         }
 
-        // Live Listener for Overall Progress Calculation
         function setupOverallListener() {
             db.collection("tasks").onSnapshot((snapshot) => {
                 const daysMap = {};
