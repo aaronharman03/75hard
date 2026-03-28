@@ -35,6 +35,7 @@
             overflow-x: hidden;
         }
 
+        /* Progress Bars */
         .progress-container {
             width: 100%;
             max-width: 500px;
@@ -46,7 +47,13 @@
             z-index: 10;
         }
 
-        .bar-label { font-size: 0.75rem; margin-bottom: 5px; display: block; opacity: 0.8; font-weight: bold; }
+        .bar-label { 
+            font-size: 0.75rem; 
+            margin-bottom: 5px; 
+            display: block; 
+            opacity: 0.8; 
+            font-weight: bold; 
+        }
         
         .progress-bar {
             width: 100%;
@@ -66,6 +73,7 @@
 
         .daily-fill { background: var(--accent); }
 
+        /* Day Scroller */
         .day-scroller {
             display: flex;
             overflow-x: auto;
@@ -94,8 +102,13 @@
             font-weight: bold;
         }
 
-        .day-btn.active { border-color: var(--primary); background: #311b92; box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
+        .day-btn.active { 
+            border-color: var(--primary); 
+            background: #311b92; 
+            box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); 
+        }
 
+        /* Task List */
         .task-card {
             background: var(--card);
             width: 100%;
@@ -122,12 +135,27 @@
         }
 
         .task-content { flex-grow: 1; overflow: hidden; }
-        .task-text { font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+        .task-text { 
+            font-size: 1.05rem; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            display: block; 
+        }
         .task-text.done { text-decoration: line-through; opacity: 0.4; }
 
         .task-actions { display: flex; gap: 15px; }
-        .action-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 1.1rem; padding: 5px; }
+        .action-btn { 
+            background: none; 
+            border: none; 
+            color: #777; 
+            cursor: pointer; 
+            font-size: 1.1rem; 
+            padding: 5px; 
+        }
+        .action-btn:hover { color: var(--text); }
 
+        /* Input Styles */
         .add-task-container {
             margin-top: 25px;
             display: flex;
@@ -156,16 +184,29 @@
             color: #000;
             cursor: pointer;
         }
+
+        label {
+            font-size: 0.9rem;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
     <div class="progress-container">
         <span id="overallLabel" class="bar-label">Overall Progress (0/75 Days)</span>
-        <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
+        <div class="progress-bar">
+            <div id="overallFill" class="progress-fill"></div>
+        </div>
         
         <span id="dailyLabel" class="bar-label">Daily Progress</span>
-        <div class="progress-bar"><div id="dailyFill" class="progress-fill daily-fill"></div></div>
+        <div class="progress-bar">
+            <div id="dailyFill" class="progress-fill daily-fill"></div>
+        </div>
     </div>
 
     <div class="day-scroller" id="dayScroller"></div>
@@ -180,13 +221,15 @@
                 <input type="text" id="taskInput" placeholder="Add a new task...">
                 <button class="add-btn" onclick="addTask()">ADD</button>
             </div>
-            <label style="font-size: 0.9rem; color: #999; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> Repeat for all 75 days
+            <label>
+                <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> 
+                Repeat for all 75 days
             </label>
         </div>
     </div>
 
     <script>
+        // --- FIREBASE CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyCtLUpfhGkp2dgtzzqobQmyV84ldAYAHtM",
             authDomain: "hard-8e466.firebaseapp.com",
@@ -201,6 +244,7 @@
         const db = firebase.firestore();
         let selectedDay = 1;
 
+        // Initialize Application
         function init() {
             const scroller = document.getElementById('dayScroller');
             for (let i = 1; i <= 75; i++) {
@@ -210,6 +254,7 @@
                 btn.onclick = () => selectDay(i);
                 scroller.appendChild(btn);
             }
+            
             setupDailyListener();
             setupOverallListener();
             registerServiceWorker();
@@ -222,6 +267,7 @@
             setupDailyListener();
         }
 
+        // Live Listener for the Active Day
         function setupDailyListener() {
             db.collection("tasks").where("day", "==", selectedDay)
                 .onSnapshot((snapshot) => {
@@ -231,6 +277,7 @@
                 });
         }
 
+        // Live Listener for Overall Progress Calculation
         function setupOverallListener() {
             db.collection("tasks").onSnapshot((snapshot) => {
                 const daysMap = {};
@@ -278,9 +325,23 @@
             await db.collection("tasks").doc(id).update({ done: !currentStatus });
         }
 
-        async function deleteTask(id) {
-            if(confirm("Delete this task?")) {
+        async function deleteTask(id, taskText) {
+            const choice = confirm("Delete this task?\n\nOK - Delete for TODAY ONLY\nCancel - Delete for ALL 75 DAYS");
+            
+            if (choice) {
+                // User clicked OK
                 await db.collection("tasks").doc(id).delete();
+            } else {
+                // User clicked Cancel (All days)
+                const secondConfirm = confirm(`Are you sure you want to delete "${taskText}" from ALL 75 days?`);
+                if (secondConfirm) {
+                    const snapshot = await db.collection("tasks").where("text", "==", taskText).get();
+                    const batch = db.batch();
+                    snapshot.forEach(doc => {
+                        batch.delete(doc.ref);
+                    });
+                    await batch.commit();
+                }
             }
         }
 
@@ -307,7 +368,7 @@
                     </div>
                     <div class="task-actions">
                         <button class="action-btn" onclick="editTask('${task.id}', '${task.text}')">✎</button>
-                        <button class="action-btn" onclick="deleteTask('${task.id}')" style="color:#555">✕</button>
+                        <button class="action-btn" onclick="deleteTask('${task.id}', '${task.text}')" style="color:#555">✕</button>
                     </div>
                 `;
                 list.appendChild(div);
