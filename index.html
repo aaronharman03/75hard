@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>75 Hard Tracker</title>
+    <title>75 Hard PWA</title>
+    <link rel="manifest" href="manifest.json">
     <style>
         :root {
             --bg: #121212;
@@ -11,10 +12,11 @@
             --primary: #bb86fc;
             --text: #e0e0e0;
             --accent: #03dac6;
+            --danger: #cf6679;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
@@ -24,14 +26,14 @@
             align-items: center;
         }
 
-        /* Progress Bars */
+        /* Progress Section */
         .progress-container {
             width: 100%;
             max-width: 500px;
             margin-bottom: 20px;
         }
 
-        .bar-label { font-size: 0.8rem; margin-bottom: 5px; display: block; }
+        .bar-label { font-size: 0.8rem; margin-bottom: 5px; display: block; opacity: 0.8; }
         
         .progress-bar {
             width: 100%;
@@ -46,12 +48,12 @@
             height: 100%;
             background: var(--primary);
             width: 0%;
-            transition: width 0.4s ease;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .daily-fill { background: var(--accent); }
 
-        /* Day Selector */
+        /* Day Scroller */
         .day-scroller {
             display: flex;
             overflow-x: auto;
@@ -59,7 +61,8 @@
             width: 100%;
             max-width: 500px;
             padding: 10px 0;
-            scrollbar-width: none;
+            margin-bottom: 10px;
+            -webkit-overflow-scrolling: touch;
         }
         .day-scroller::-webkit-scrollbar { display: none; }
 
@@ -71,9 +74,11 @@
             border-radius: 8px;
             color: white;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            flex-shrink: 0;
         }
 
         .day-btn.active { border-color: var(--primary); background: #311b92; }
@@ -86,49 +91,71 @@
             border-radius: 12px;
             padding: 20px;
             box-sizing: border-box;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
 
         .task-item {
             display: flex;
             align-items: center;
-            padding: 12px 0;
+            padding: 15px 0;
             border-bottom: 1px solid #333;
         }
 
         .task-item:last-child { border-bottom: none; }
 
-        input[type="checkbox"] {
-            width: 22px;
-            height: 22px;
+        .checkbox-custom {
+            width: 24px;
+            height: 24px;
             margin-right: 15px;
             accent-color: var(--accent);
+            cursor: pointer;
         }
 
-        .task-text { flex-grow: 1; font-size: 1.1rem; }
-        .task-text.done { text-decoration: line-through; opacity: 0.5; }
+        .task-content { flex-grow: 1; }
+        .task-text { font-size: 1.05rem; display: block; }
+        .task-text.done { text-decoration: line-through; opacity: 0.4; }
+        .repeat-tag { font-size: 0.7rem; color: var(--accent); font-weight: bold; }
 
-        /* Add Task */
-        .add-task-row {
-            display: flex;
-            gap: 10px;
+        /* Buttons & Actions */
+        .task-actions { display: flex; gap: 12px; }
+        .action-btn { background: none; border: none; color: #666; cursor: pointer; font-size: 1rem; padding: 5px; }
+        .action-btn:hover { color: var(--text); }
+        .delete-btn:hover { color: var(--danger); }
+
+        .add-task-container {
             margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
+        .input-row { display: flex; gap: 10px; }
+        
         input[type="text"] {
             flex-grow: 1;
             background: #333;
-            border: none;
-            padding: 10px;
+            border: 1px solid #444;
+            padding: 12px;
             color: white;
-            border-radius: 6px;
+            border-radius: 8px;
+            outline: none;
         }
 
-        button.add-btn {
+        .repeat-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: #bbb;
+        }
+
+        .add-btn {
             background: var(--primary);
             border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
+            padding: 0 20px;
+            border-radius: 8px;
             font-weight: bold;
+            color: #000;
             cursor: pointer;
         }
     </style>
@@ -136,43 +163,50 @@
 <body>
 
     <div class="progress-container">
-        <span class="bar-label">Overall Progress (75 Days)</span>
+        <span class="bar-label">Overall Journey (75 Days)</span>
         <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
         
-        <span class="bar-label">Daily Progress</span>
+        <span class="bar-label" id="dailyLabel">Daily Progress</span>
         <div class="progress-bar"><div id="dailyFill" class="progress-fill daily-fill"></div></div>
     </div>
 
     <div class="day-scroller" id="dayScroller"></div>
 
-    <h2 id="currentDayTitle">Day 1</h2>
+    <h2 id="currentDayTitle" style="margin: 10px 0;">Day 1</h2>
 
     <div class="task-card">
         <div id="taskList"></div>
         
-        <div class="add-task-row">
-            <input type="text" id="taskInput" placeholder="New task...">
-            <button class="add-btn" onclick="addTask()">Add</button>
+        <div class="add-task-container">
+            <div class="input-row">
+                <input type="text" id="taskInput" placeholder="Enter task name...">
+                <button class="add-btn" onclick="addTask()">ADD</button>
+            </div>
+            <label class="repeat-toggle">
+                <input type="checkbox" id="repeatDaily"> Repeat for all 75 days
+            </label>
         </div>
     </div>
 
     <script>
-        // Data Structure: { 1: [{text: 'Water', done: false}], 2: [] }
         let appData = JSON.parse(localStorage.getItem('75hard_data')) || {};
         let selectedDay = 1;
 
-        // Initialize UI
         function init() {
             const scroller = document.getElementById('dayScroller');
             for (let i = 1; i <= 75; i++) {
                 const btn = document.createElement('div');
                 btn.className = `day-btn ${i === selectedDay ? 'active' : ''}`;
-                btn.innerText = i;
+                btn.innerHTML = `<span style="font-size:10px">DAY</span>${i}`;
                 btn.onclick = () => selectDay(i);
                 scroller.appendChild(btn);
             }
             renderTasks();
             updateOverallProgress();
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(() => {});
+            }
         }
 
         function selectDay(day) {
@@ -186,18 +220,50 @@
 
         function addTask() {
             const input = document.getElementById('taskInput');
-            if (!input.value) return;
+            const repeat = document.getElementById('repeatDaily').checked;
+            if (!input.value.trim()) return;
             
-            if (!appData[selectedDay]) appData[selectedDay] = [];
-            appData[selectedDay].push({ text: input.value, done: false });
+            const taskObj = { 
+                id: Date.now() + Math.random(), 
+                text: input.value, 
+                done: false, 
+                repeating: repeat 
+            };
+
+            if (repeat) {
+                for (let i = 1; i <= 75; i++) {
+                    if (!appData[i]) appData[i] = [];
+                    appData[i].push({ ...taskObj });
+                }
+            } else {
+                if (!appData[selectedDay]) appData[selectedDay] = [];
+                appData[selectedDay].push(taskObj);
+            }
             
             input.value = '';
+            document.getElementById('repeatDaily').checked = false;
             saveAndRender();
         }
 
         function toggleTask(index) {
             appData[selectedDay][index].done = !appData[selectedDay][index].done;
             saveAndRender();
+        }
+
+        function deleteTask(index) {
+            if(confirm("Delete this task?")) {
+                appData[selectedDay].splice(index, 1);
+                saveAndRender();
+            }
+        }
+
+        function editTask(index) {
+            const currentText = appData[selectedDay][index].text;
+            const newText = prompt("Edit task description:", currentText);
+            if (newText !== null && newText.trim() !== "") {
+                appData[selectedDay][index].text = newText;
+                saveAndRender();
+            }
         }
 
         function renderTasks() {
@@ -209,31 +275,39 @@
                 const div = document.createElement('div');
                 div.className = 'task-item';
                 div.innerHTML = `
-                    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${index})">
-                    <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
+                    <input type="checkbox" class="checkbox-custom" ${task.done ? 'checked' : ''} onchange="toggleTask(${index})">
+                    <div class="task-content">
+                        <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
+                        ${task.repeating ? '<span class="repeat-tag">DAILY TASK</span>' : ''}
+                    </div>
+                    <div class="task-actions">
+                        <button class="action-btn" onclick="editTask(${index})">✎</button>
+                        <button class="action-btn delete-btn" onclick="deleteTask(${index})">✕</button>
+                    </div>
                 `;
                 list.appendChild(div);
             });
+            
+            if(tasks.length === 0) {
+                list.innerHTML = '<p style="text-align:center; opacity:0.5">No tasks for today.</p>';
+            }
+            
             updateDailyProgress();
         }
 
         function updateDailyProgress() {
             const tasks = appData[selectedDay] || [];
-            if (tasks.length === 0) {
-                document.getElementById('dailyFill').style.width = '0%';
-                return;
-            }
             const done = tasks.filter(t => t.done).length;
-            const percent = (done / tasks.length) * 100;
+            const percent = tasks.length ? (done / tasks.length) * 100 : 0;
             document.getElementById('dailyFill').style.width = percent + '%';
+            document.getElementById('dailyLabel').innerText = `Daily Progress (${done}/${tasks.length})`;
         }
 
         function updateOverallProgress() {
-            // Overall progress is based on how many days have been "completed" 
-            // (where all tasks for that day are checked)
             let completedDays = 0;
-            for(let day in appData) {
-                if(appData[day].length > 0 && appData[day].every(t => t.done)) {
+            for(let i = 1; i <= 75; i++) {
+                const dayTasks = appData[i] || [];
+                if(dayTasks.length > 0 && dayTasks.every(t => t.done)) {
                     completedDays++;
                 }
             }
