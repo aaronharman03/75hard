@@ -1,192 +1,136 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>75 Hard Firestore PWA</title>
-    <link rel="manifest" href="manifest.json">
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <style>
-        :root {
-            --bg: #121212; --card: #1e1e1e; --primary: #bb86fc;
-            --text: #e0e0e0; --accent: #03dac6; --danger: #cf6679;
+// PASTE YOUR FIREBASE CONFIG HERE
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+let selectedDay = 1;
+
+async function init() {
+    const scroller = document.getElementById('dayScroller');
+    for (let i = 1; i <= 75; i++) {
+        const btn = document.createElement('div');
+        btn.className = `day-btn ${i === selectedDay ? 'active' : ''}`;
+        btn.innerHTML = `<span style="font-size:10px">DAY</span>${i}`;
+        btn.onclick = () => selectDay(i);
+        scroller.appendChild(btn);
+    }
+    
+    // Listen to CURRENT DAY tasks
+    setupDailyListener();
+    // Listen to ALL tasks for the overall progress bar
+    setupOverallListener();
+}
+
+function selectDay(day) {
+    selectedDay = day;
+    document.querySelectorAll('.day-btn').forEach((b, idx) => b.classList.toggle('active', (idx + 1) === day));
+    document.getElementById('currentDayTitle').innerText = `Day ${day}`;
+    setupDailyListener(); // Refresh the list for the new day
+}
+
+// 1. LIVE LISTENER FOR THE ACTIVE DAY
+function setupDailyListener() {
+    db.collection("tasks").where("day", "==", selectedDay)
+        .onSnapshot((snapshot) => {
+            const tasks = [];
+            snapshot.forEach(doc => tasks.push({ id: doc.id, ...doc.data() }));
+            renderTasks(tasks);
+        });
+}
+
+// 2. LIVE LISTENER FOR OVERALL PROGRESS (The "Broken" Part Fixed)
+function setupOverallListener() {
+    db.collection("tasks").onSnapshot((snapshot) => {
+        const daysMap = {};
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (!daysMap[data.day]) daysMap[data.day] = { total: 0, done: 0 };
+            daysMap[data.day].total++;
+            if (data.done) daysMap[data.day].done++;
+        });
+
+        let completedDays = 0;
+        for (let i = 1; i <= 75; i++) {
+            // A day is "Complete" only if it has tasks AND all of them are 'done'
+            if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) {
+                completedDays++;
+            }
         }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .progress-container { width: 100%; max-width: 500px; margin-bottom: 20px; }
-        .progress-bar { width: 100%; height: 12px; background: #333; border-radius: 6px; overflow: hidden; margin-bottom: 15px; }
-        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.4s; }
-        .daily-fill { background: var(--accent); }
-        .day-scroller { display: flex; overflow-x: auto; gap: 10px; width: 100%; max-width: 500px; padding: 10px 0; }
-        .day-btn { min-width: 50px; height: 50px; background: var(--card); border: 1px solid #333; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-        .day-btn.active { border-color: var(--primary); background: #311b92; }
-        .task-card { background: var(--card); width: 100%; max-width: 500px; border-radius: 12px; padding: 20px; box-sizing: border-box; }
-        .task-item { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #333; }
-        .task-content { flex-grow: 1; }
-        .task-text.done { text-decoration: line-through; opacity: 0.4; }
-        .task-actions { display: flex; gap: 10px; }
-        .add-task-container { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .input-row { display: flex; gap: 10px; }
-        input[type="text"] { flex-grow: 1; background: #333; border: 1px solid #444; padding: 12px; color: white; border-radius: 8px; }
-        .add-btn { background: var(--primary); border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-    </style>
-</head>
-<body>
+        
+        const percent = (completedDays / 75) * 100;
+        document.getElementById('overallFill').style.width = percent + '%';
+        document.getElementById('overallLabel').innerText = `Overall Progress (${completedDays}/75 Days)`;
+    });
+}
 
-    <div class="progress-container">
-        <span id="overallLabel" style="font-size: 0.8rem;">Overall Progress</span>
-        <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
-        <span id="dailyLabel" style="font-size: 0.8rem;">Daily Progress</span>
-        <div class="progress-bar"><div id="dailyFill" class="progress-fill daily-fill"></div></div>
-    </div>
+async function addTask() {
+    const input = document.getElementById('taskInput');
+    const repeat = document.getElementById('repeatDaily').checked;
+    if (!input.value.trim()) return;
 
-    <div class="day-scroller" id="dayScroller"></div>
-    <h2 id="currentDayTitle">Day 1</h2>
+    const taskName = input.value;
+    input.value = '';
 
-    <div class="task-card">
-        <div id="taskList">Loading tasks...</div>
-        <div class="add-task-container">
-            <div class="input-row">
-                <input type="text" id="taskInput" placeholder="Task name...">
-                <button class="add-btn" onclick="addTask()">ADD</button>
+    if (repeat) {
+        const batch = db.batch();
+        for (let i = 1; i <= 75; i++) {
+            const ref = db.collection("tasks").doc();
+            batch.set(ref, { text: taskName, done: false, day: i, repeating: true });
+        }
+        await batch.commit();
+    } else {
+        await db.collection("tasks").add({ text: taskName, done: false, day: selectedDay, repeating: false });
+    }
+}
+
+async function toggleTask(id, currentStatus) {
+    await db.collection("tasks").doc(id).update({ done: !currentStatus });
+}
+
+async function deleteTask(id) {
+    if(confirm("Delete task?")) {
+        await db.collection("tasks").doc(id).delete();
+    }
+}
+
+async function editTask(id, oldText) {
+    const newText = prompt("Edit task:", oldText);
+    if (newText) await db.collection("tasks").doc(id).update({ text: newText });
+}
+
+function renderTasks(tasks) {
+    const list = document.getElementById('taskList');
+    list.innerHTML = tasks.length === 0 ? '<p style="opacity:0.5;text-align:center">No tasks.</p>' : '';
+    
+    let doneCount = 0;
+    tasks.forEach(task => {
+        if(task.done) doneCount++;
+        const div = document.createElement('div');
+        div.className = 'task-item';
+        div.innerHTML = `
+            <input type="checkbox" class="checkbox-custom" ${task.done ? 'checked' : ''} onchange="toggleTask('${task.id}', ${task.done})">
+            <div class="task-content">
+                <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
             </div>
-            <label style="font-size:0.8rem;"><input type="checkbox" id="repeatDaily"> Repeat for 75 days</label>
-        </div>
-    </div>
+            <div class="task-actions">
+                <button class="action-btn" onclick="editTask('${task.id}', '${task.text}')">✎</button>
+                <button class="action-btn" onclick="deleteTask('${task.id}')">✕</button>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+    
+    const percent = tasks.length ? (doneCount / tasks.length) * 100 : 0;
+    document.getElementById('dailyFill').style.width = percent + '%';
+    document.getElementById('dailyLabel').innerText = `Daily Progress (${doneCount}/${tasks.length})`;
+}
 
-    <script>
-        // PASTE YOUR FIREBASE CONFIG HERE
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        let selectedDay = 1;
-
-        async function init() {
-            const scroller = document.getElementById('dayScroller');
-            for (let i = 1; i <= 75; i++) {
-                const btn = document.createElement('div');
-                btn.className = `day-btn ${i === selectedDay ? 'active' : ''}`;
-                btn.innerHTML = `<span style="font-size:10px">DAY</span>${i}`;
-                btn.onclick = () => selectDay(i);
-                scroller.appendChild(btn);
-            }
-            fetchTasks();
-            updateOverallProgress();
-        }
-
-        function selectDay(day) {
-            selectedDay = day;
-            document.querySelectorAll('.day-btn').forEach((b, idx) => b.classList.toggle('active', (idx + 1) === day));
-            document.getElementById('currentDayTitle').innerText = `Day ${day}`;
-            fetchTasks();
-        }
-
-        // Real-time listener for current day's tasks
-        function fetchTasks() {
-            db.collection("tasks").where("day", "==", selectedDay)
-                .onSnapshot((snapshot) => {
-                    const tasks = [];
-                    snapshot.forEach(doc => tasks.push({ id: doc.id, ...doc.data() }));
-                    renderTasks(tasks);
-                });
-        }
-
-        async function addTask() {
-            const input = document.getElementById('taskInput');
-            const repeat = document.getElementById('repeatDaily').checked;
-            if (!input.value.trim()) return;
-
-            const taskName = input.value;
-            input.value = '';
-
-            if (repeat) {
-                const batch = db.batch();
-                for (let i = 1; i <= 75; i++) {
-                    const ref = db.collection("tasks").doc();
-                    batch.set(ref, { text: taskName, done: false, day: i, repeating: true });
-                }
-                await batch.commit();
-            } else {
-                await db.collection("tasks").add({ text: taskName, done: false, day: selectedDay, repeating: false });
-            }
-            updateOverallProgress();
-        }
-
-        async function toggleTask(id, currentStatus) {
-            await db.collection("tasks").doc(id).update({ done: !currentStatus });
-            updateOverallProgress();
-        }
-
-        async function deleteTask(id) {
-            if(confirm("Delete task?")) {
-                await db.collection("tasks").doc(id).delete();
-                updateOverallProgress();
-            }
-        }
-
-        async function editTask(id, oldText) {
-            const newText = prompt("Edit task:", oldText);
-            if (newText) await db.collection("tasks").doc(id).update({ text: newText });
-        }
-
-        function renderTasks(tasks) {
-            const list = document.getElementById('taskList');
-            list.innerHTML = tasks.length === 0 ? '<p style="opacity:0.5;text-align:center">No tasks.</p>' : '';
-            
-            let doneCount = 0;
-            tasks.forEach(task => {
-                if(task.done) doneCount++;
-                const div = document.createElement('div');
-                div.className = 'task-item';
-                div.innerHTML = `
-                    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask('${task.id}', ${task.done})">
-                    <div class="task-content">
-                        <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
-                    </div>
-                    <div class="task-actions">
-                        <button class="action-btn" onclick="editTask('${task.id}', '${task.text}')">✎</button>
-                        <button class="action-btn" onclick="deleteTask('${task.id}')">✕</button>
-                    </div>
-                `;
-                list.appendChild(div);
-            });
-            
-            const percent = tasks.length ? (doneCount / tasks.length) * 100 : 0;
-            document.getElementById('dailyFill').style.width = percent + '%';
-            document.getElementById('dailyLabel').innerText = `Daily Progress (${doneCount}/${tasks.length})`;
-        }
-
-        async function updateOverallProgress() {
-            const allTasks = await db.collection("tasks").get();
-            const daysMap = {};
-            
-            allTasks.forEach(doc => {
-                const data = doc.data();
-                if (!daysMap[data.day]) daysMap[data.day] = { total: 0, done: 0 };
-                daysMap[data.day].total++;
-                if (data.done) daysMap[data.day].done++;
-            });
-
-            let completedDays = 0;
-            for (let i = 1; i <= 75; i++) {
-                if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) {
-                    completedDays++;
-                }
-            }
-            const percent = (completedDays / 75) * 100;
-            document.getElementById('overallFill').style.width = percent + '%';
-            document.getElementById('overallLabel').innerText = `Overall Progress (${completedDays}/75 Days)`;
-        }
-
-        init();
-    </script>
-</body>
-</html>
+init();
