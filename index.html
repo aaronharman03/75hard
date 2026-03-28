@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>75 Hard Tracker</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --card: #1e1e1e;
+            --primary: #bb86fc;
+            --text: #e0e0e0;
+            --accent: #03dac6;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Progress Bars */
+        .progress-container {
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 20px;
+        }
+
+        .bar-label { font-size: 0.8rem; margin-bottom: 5px; display: block; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #333;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.4s ease;
+        }
+
+        .daily-fill { background: var(--accent); }
+
+        /* Day Selector */
+        .day-scroller {
+            display: flex;
+            overflow-x: auto;
+            gap: 10px;
+            width: 100%;
+            max-width: 500px;
+            padding: 10px 0;
+            scrollbar-width: none;
+        }
+        .day-scroller::-webkit-scrollbar { display: none; }
+
+        .day-btn {
+            min-width: 50px;
+            height: 50px;
+            background: var(--card);
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .day-btn.active { border-color: var(--primary); background: #311b92; }
+
+        /* Task List */
+        .task-card {
+            background: var(--card);
+            width: 100%;
+            max-width: 500px;
+            border-radius: 12px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .task-item:last-child { border-bottom: none; }
+
+        input[type="checkbox"] {
+            width: 22px;
+            height: 22px;
+            margin-right: 15px;
+            accent-color: var(--accent);
+        }
+
+        .task-text { flex-grow: 1; font-size: 1.1rem; }
+        .task-text.done { text-decoration: line-through; opacity: 0.5; }
+
+        /* Add Task */
+        .add-task-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            background: #333;
+            border: none;
+            padding: 10px;
+            color: white;
+            border-radius: 6px;
+        }
+
+        button.add-btn {
+            background: var(--primary);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="progress-container">
+        <span class="bar-label">Overall Progress (75 Days)</span>
+        <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
+        
+        <span class="bar-label">Daily Progress</span>
+        <div class="progress-bar"><div id="dailyFill" class="progress-fill daily-fill"></div></div>
+    </div>
+
+    <div class="day-scroller" id="dayScroller"></div>
+
+    <h2 id="currentDayTitle">Day 1</h2>
+
+    <div class="task-card">
+        <div id="taskList"></div>
+        
+        <div class="add-task-row">
+            <input type="text" id="taskInput" placeholder="New task...">
+            <button class="add-btn" onclick="addTask()">Add</button>
+        </div>
+    </div>
+
+    <script>
+        // Data Structure: { 1: [{text: 'Water', done: false}], 2: [] }
+        let appData = JSON.parse(localStorage.getItem('75hard_data')) || {};
+        let selectedDay = 1;
+
+        // Initialize UI
+        function init() {
+            const scroller = document.getElementById('dayScroller');
+            for (let i = 1; i <= 75; i++) {
+                const btn = document.createElement('div');
+                btn.className = `day-btn ${i === selectedDay ? 'active' : ''}`;
+                btn.innerText = i;
+                btn.onclick = () => selectDay(i);
+                scroller.appendChild(btn);
+            }
+            renderTasks();
+            updateOverallProgress();
+        }
+
+        function selectDay(day) {
+            selectedDay = day;
+            document.querySelectorAll('.day-btn').forEach((b, idx) => {
+                b.classList.toggle('active', (idx + 1) === day);
+            });
+            document.getElementById('currentDayTitle').innerText = `Day ${day}`;
+            renderTasks();
+        }
+
+        function addTask() {
+            const input = document.getElementById('taskInput');
+            if (!input.value) return;
+            
+            if (!appData[selectedDay]) appData[selectedDay] = [];
+            appData[selectedDay].push({ text: input.value, done: false });
+            
+            input.value = '';
+            saveAndRender();
+        }
+
+        function toggleTask(index) {
+            appData[selectedDay][index].done = !appData[selectedDay][index].done;
+            saveAndRender();
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('taskList');
+            list.innerHTML = '';
+            const tasks = appData[selectedDay] || [];
+            
+            tasks.forEach((task, index) => {
+                const div = document.createElement('div');
+                div.className = 'task-item';
+                div.innerHTML = `
+                    <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${index})">
+                    <span class="task-text ${task.done ? 'done' : ''}">${task.text}</span>
+                `;
+                list.appendChild(div);
+            });
+            updateDailyProgress();
+        }
+
+        function updateDailyProgress() {
+            const tasks = appData[selectedDay] || [];
+            if (tasks.length === 0) {
+                document.getElementById('dailyFill').style.width = '0%';
+                return;
+            }
+            const done = tasks.filter(t => t.done).length;
+            const percent = (done / tasks.length) * 100;
+            document.getElementById('dailyFill').style.width = percent + '%';
+        }
+
+        function updateOverallProgress() {
+            // Overall progress is based on how many days have been "completed" 
+            // (where all tasks for that day are checked)
+            let completedDays = 0;
+            for(let day in appData) {
+                if(appData[day].length > 0 && appData[day].every(t => t.done)) {
+                    completedDays++;
+                }
+            }
+            const percent = (completedDays / 75) * 100;
+            document.getElementById('overallFill').style.width = percent + '%';
+        }
+
+        function saveAndRender() {
+            localStorage.setItem('75hard_data', JSON.stringify(appData));
+            renderTasks();
+            updateOverallProgress();
+        }
+
+        init();
+    </script>
+</body>
+</html>
