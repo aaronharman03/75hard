@@ -20,7 +20,6 @@
             --primary: #bb86fc;
             --text: #e0e0e0;
             --accent: #03dac6;
-            --danger: #cf6679;
         }
 
         body {
@@ -93,7 +92,7 @@
             font-weight: bold;
         }
 
-        .day-btn.active { border-color: var(--primary); background: #311b92; box-shadow: 0 0 10px rgba(187, 134, 252, 0.3); }
+        .day-btn.active { border-color: var(--primary); background: #311b92; }
 
         .task-card {
             background: var(--card);
@@ -122,7 +121,6 @@
 
         .task-content { flex-grow: 1; display: flex; align-items: center; gap: 10px; overflow: hidden; }
         
-        /* The Number Badge in the list */
         .task-num-badge {
             background: #333;
             color: var(--primary);
@@ -140,31 +138,17 @@
         .task-actions { display: flex; gap: 15px; }
         .action-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 1.1rem; padding: 5px; }
 
-        /* Input Section */
         .add-task-container {
             margin-top: 25px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 15px;
         }
 
         .input-row { 
             display: flex; 
             gap: 10px; 
             width: 100%;
-        }
-
-        /* THE NUMBER INPUT BOX */
-        .num-input {
-            width: 50px !important;
-            min-width: 50px !important;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: var(--primary);
-            text-align: center;
-            border-radius: 10px;
-            font-weight: bold;
-            outline: none;
         }
 
         input[type="text"] {
@@ -181,14 +165,49 @@
         .add-btn {
             background: var(--primary);
             border: none;
-            padding: 0 22px;
+            padding: 0 25px;
             border-radius: 10px;
             font-weight: bold;
             color: #000;
             cursor: pointer;
         }
 
-        label { font-size: 0.9rem; color: #999; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        /* NEW OPTIONS ROW (Number and Repeat) */
+        .options-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 5px;
+        }
+
+        .num-input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        .num-input {
+            width: 50px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: var(--primary);
+            text-align: center;
+            border-radius: 8px;
+            font-weight: bold;
+            padding: 5px;
+            outline: none;
+        }
+
+        .repeat-label {
+            font-size: 0.9rem;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -210,13 +229,19 @@
         
         <div class="add-task-container">
             <div class="input-row">
-                <input type="number" id="taskOrder" class="num-input" value="1">
                 <input type="text" id="taskInput" placeholder="Add a new task...">
                 <button class="add-btn" onclick="addTask()">ADD</button>
             </div>
-            <label>
-                <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> Repeat for all 75 days
-            </label>
+
+            <div class="options-row">
+                <div class="num-input-group">
+                    <span>Order:</span>
+                    <input type="number" id="taskOrder" class="num-input" value="1">
+                </div>
+                <label class="repeat-label">
+                    <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> Repeat 75 Days
+                </label>
+            </div>
         </div>
     </div>
 
@@ -246,9 +271,6 @@
             }
             setupDailyListener();
             setupOverallListener();
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js').catch(() => {});
-            }
         }
 
         function selectDay(day) {
@@ -279,9 +301,7 @@
 
                 let completedDays = 0;
                 for (let i = 1; i <= 75; i++) {
-                    if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) {
-                        completedDays++;
-                    }
+                    if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) completedDays++;
                 }
                 const percent = (completedDays / 75) * 100;
                 document.getElementById('overallFill').style.width = percent + '%';
@@ -300,7 +320,7 @@
             const orderNum = parseInt(orderInput.value) || 1;
             
             input.value = '';
-            orderInput.value = orderNum + 1; // Auto-increment
+            orderInput.value = orderNum + 1;
             document.getElementById('repeatDaily').checked = false;
 
             if (repeat) {
@@ -350,7 +370,6 @@
             list.innerHTML = tasks.length === 0 ? '<p style="text-align:center; opacity:0.4; margin: 20px 0;">No tasks.</p>' : '';
             
             let doneCount = 0;
-            // NUMERICAL SORTING
             tasks.sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(task => {
                 if(task.done) doneCount++;
                 const div = document.createElement('div');
