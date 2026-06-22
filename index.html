@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hard Tracker</title>
+    <title>Habit Tracker</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -257,7 +257,7 @@
     </div>
 
     <div class="progress-container">
-        <span id="overallLabel" class="bar-label">Overall Progress (0/75 Days)</span>
+        <span id="overallLabel" class="bar-label">Overall Progress (0/0 Tasks)</span>
         <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
         
         <span id="dailyLabel" class="bar-label">Daily Progress</span>
@@ -306,7 +306,6 @@
         let selectedDay = 1;
         let totalDays = 75;
 
-        // Load saved duration from localStorage
         const savedDays = localStorage.getItem('totalDays');
         if (savedDays) {
             totalDays = parseInt(savedDays);
@@ -315,7 +314,6 @@
         function init() {
             document.getElementById('totalDaysInput').value = totalDays;
             document.getElementById('repeatLabel').innerText = `Repeat ${totalDays} Days`;
-            document.getElementById('overallLabel').innerText = `Overall Progress (0/${totalDays} Days)`;
             renderDayButtons();
             setupDailyListener();
             setupOverallListener();
@@ -351,21 +349,18 @@
 
         function setupOverallListener() {
             db.collection("tasks").onSnapshot((snapshot) => {
-                const daysMap = {};
+                let totalTasks = 0;
+                let completedTasks = 0;
+                
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    if (!daysMap[data.day]) daysMap[data.day] = { total: 0, done: 0 };
-                    daysMap[data.day].total++;
-                    if (data.done) daysMap[data.day].done++;
+                    totalTasks++;
+                    if (data.done) completedTasks++;
                 });
 
-                let completedDays = 0;
-                for (let i = 1; i <= totalDays; i++) {
-                    if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) completedDays++;
-                }
-                const percent = (completedDays / totalDays) * 100;
+                const percent = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
                 document.getElementById('overallFill').style.width = percent + '%';
-                document.getElementById('overallLabel').innerText = `Overall Progress (${completedDays}/${totalDays} Days)`;
+                document.getElementById('overallLabel').innerText = `Overall Progress (${completedTasks}/${totalTasks} Tasks)`;
             });
         }
 
@@ -389,7 +384,6 @@
             
             document.getElementById('repeatLabel').innerText = `Repeat ${totalDays} Days`;
             renderDayButtons();
-            setupOverallListener();
             
             if (selectedDay > totalDays) {
                 selectDay(1);
