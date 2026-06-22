@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>75 Hard Tracker</title>
+    <title>Hard Tracker</title>
     
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -31,6 +31,45 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+
+        .settings-bar {
+            width: 100%;
+            max-width: 500px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: var(--card);
+            padding: 12px 15px;
+            border-radius: 10px;
+        }
+
+        .settings-bar label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .settings-bar input {
+            width: 70px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: var(--primary);
+            text-align: center;
+            border-radius: 8px;
+            font-weight: bold;
+            padding: 8px;
+            outline: none;
+        }
+
+        .settings-bar button {
+            background: var(--accent);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: bold;
+            color: #000;
+            cursor: pointer;
         }
 
         .progress-container {
@@ -172,7 +211,6 @@
             cursor: pointer;
         }
 
-        /* NEW OPTIONS ROW (Number and Repeat) */
         .options-row {
             display: flex;
             align-items: center;
@@ -212,6 +250,12 @@
 </head>
 <body>
 
+    <div class="settings-bar">
+        <label>Challenge Length:</label>
+        <input type="number" id="totalDaysInput" min="1" max="365" value="75">
+        <button onclick="updateTotalDays()">Set</button>
+    </div>
+
     <div class="progress-container">
         <span id="overallLabel" class="bar-label">Overall Progress (0/75 Days)</span>
         <div class="progress-bar"><div id="overallFill" class="progress-fill"></div></div>
@@ -239,7 +283,8 @@
                     <input type="number" id="taskOrder" class="num-input" value="1">
                 </div>
                 <label class="repeat-label">
-                    <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> Repeat 75 Days
+                    <input type="checkbox" id="repeatDaily" style="width:16px; height:16px;"> 
+                    <span id="repeatLabel">Repeat 75 Days</span>
                 </label>
             </div>
         </div>
@@ -259,18 +304,33 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         let selectedDay = 1;
+        let totalDays = 75;
+
+        // Load saved duration from localStorage
+        const savedDays = localStorage.getItem('totalDays');
+        if (savedDays) {
+            totalDays = parseInt(savedDays);
+        }
 
         function init() {
+            document.getElementById('totalDaysInput').value = totalDays;
+            document.getElementById('repeatLabel').innerText = `Repeat ${totalDays} Days`;
+            document.getElementById('overallLabel').innerText = `Overall Progress (0/${totalDays} Days)`;
+            renderDayButtons();
+            setupDailyListener();
+            setupOverallListener();
+        }
+
+        function renderDayButtons() {
             const scroller = document.getElementById('dayScroller');
-            for (let i = 1; i <= 75; i++) {
+            scroller.innerHTML = '';
+            for (let i = 1; i <= totalDays; i++) {
                 const btn = document.createElement('div');
                 btn.className = `day-btn ${i === selectedDay ? 'active' : ''}`;
                 btn.innerHTML = `<span style="font-size:9px; opacity:0.7">DAY</span>${i}`;
                 btn.onclick = () => selectDay(i);
                 scroller.appendChild(btn);
             }
-            setupDailyListener();
-            setupOverallListener();
         }
 
         function selectDay(day) {
@@ -300,13 +360,40 @@
                 });
 
                 let completedDays = 0;
-                for (let i = 1; i <= 75; i++) {
+                for (let i = 1; i <= totalDays; i++) {
                     if (daysMap[i] && daysMap[i].total > 0 && daysMap[i].total === daysMap[i].done) completedDays++;
                 }
-                const percent = (completedDays / 75) * 100;
+                const percent = (completedDays / totalDays) * 100;
                 document.getElementById('overallFill').style.width = percent + '%';
-                document.getElementById('overallLabel').innerText = `Overall Progress (${completedDays}/75 Days)`;
+                document.getElementById('overallLabel').innerText = `Overall Progress (${completedDays}/${totalDays} Days)`;
             });
+        }
+
+        function updateTotalDays() {
+            const newTotal = parseInt(document.getElementById('totalDaysInput').value);
+            
+            if (newTotal < 1 || newTotal > 365) {
+                alert('Please enter between 1-365 days');
+                document.getElementById('totalDaysInput').value = totalDays;
+                return;
+            }
+            
+            const confirmChange = confirm(`Change challenge to ${newTotal} days? Your existing tasks won't be deleted.`);
+            if (!confirmChange) {
+                document.getElementById('totalDaysInput').value = totalDays;
+                return;
+            }
+            
+            totalDays = newTotal;
+            localStorage.setItem('totalDays', totalDays);
+            
+            document.getElementById('repeatLabel').innerText = `Repeat ${totalDays} Days`;
+            renderDayButtons();
+            setupOverallListener();
+            
+            if (selectedDay > totalDays) {
+                selectDay(1);
+            }
         }
 
         async function addTask() {
@@ -325,7 +412,7 @@
 
             if (repeat) {
                 const batch = db.batch();
-                for (let i = 1; i <= 75; i++) {
+                for (let i = 1; i <= totalDays; i++) {
                     const ref = db.collection("tasks").doc();
                     batch.set(ref, { text: name, done: false, day: i, order: orderNum });
                 }
@@ -340,11 +427,11 @@
         }
 
         async function deleteTask(id, taskText) {
-            const choice = confirm("Delete this task?\n\nOK - Just Today\nCancel - ALL 75 Days");
+            const choice = confirm("Delete this task?\n\nOK - Just Today\nCancel - ALL Days");
             if (choice) {
                 await db.collection("tasks").doc(id).delete();
             } else {
-                const secondConfirm = confirm(`Delete "${taskText}" from ALL 75 days?`);
+                const secondConfirm = confirm(`Delete "${taskText}" from ALL ${totalDays} days?`);
                 if (secondConfirm) {
                     const snapshot = await db.collection("tasks").where("text", "==", taskText).get();
                     const batch = db.batch();
